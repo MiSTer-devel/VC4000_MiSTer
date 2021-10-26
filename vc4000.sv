@@ -186,6 +186,7 @@ localparam CONF_STR = {
 	//"O5,Video standard,PAL,NTSC;",
 	"O3,Swap Joystick,Off,On;",
 	"O4,Swap Joystick XY,Off,On;",
+	"OD,D-pad,Absolute,Integration;",
 	"OC,Bright,Off,On;" ,
 	"O67,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"J,Start,Select,1,2,3,4,5,6,7,8,9,10,11,12;",
@@ -270,6 +271,7 @@ vc4000_core vc4000_core
 	.ntsc_pal(1'b1),
 	.swap(status[3]),
 	.swapxy(status[4]),
+        .integ(status[13]),
 	.bright(status[12]),
 
 	.clk_video(CLK_VIDEO),

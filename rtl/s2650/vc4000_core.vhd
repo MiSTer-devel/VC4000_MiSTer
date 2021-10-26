@@ -24,9 +24,9 @@ ENTITY vc4000_core IS
 
     -- Must be passed to hps_io module
     ntsc_pal         : IN    std_logic;
-    arca             : IN    std_logic;
     swap             : IN    std_logic;
     swapxy           : IN    std_logic;
+    integ            : IN    std_logic;
     bright           : IN    std_logic;
 
     -- Base video clock. Usually equals to CLK_SYS.
@@ -65,18 +65,7 @@ END vc4000_core;
 ARCHITECTURE struct OF vc4000_core IS
 
   CONSTANT CDIV : natural := 4 * 8;
- 
-  SIGNAL ps2_key_delay : std_logic_vector(10 DOWNTO 0);
   
-  SIGNAL key_0, key_1 , key_2 , key_3  : std_logic;
-  SIGNAL key_4, key_5 , key_6 , key_7  : std_logic;
-  SIGNAL key_8, key_9 , key_a , key_b  : std_logic;
-  SIGNAL key_c, key_d , key_e , key_f  : std_logic;
-
-  SIGNAL key_rc   ,key_wc  ,key_bp ,key_pc  : std_logic;
-  SIGNAL key_minus,key_plus,key_reg,key_mem : std_logic;
-  SIGNAL key_select , key_start : std_logic;
-
   --------------------------------------
   SIGNAL keypad1_1, keypad1_2, keypad1_3 : unsigned(7 DOWNTO 0);
   SIGNAL keypad2_1, keypad2_2, keypad2_3 : unsigned(7 DOWNTO 0);
@@ -93,7 +82,9 @@ ARCHITECTURE struct OF vc4000_core IS
   SIGNAL pot1,pot2 : unsigned(7 DOWNTO 0);
   SIGNAL potl_a,potl_b,potr_a,potr_b : unsigned(7 DOWNTO 0);
   SIGNAL potl_v,potl_h,potr_v,potr_h : unsigned(7 DOWNTO 0);
-  
+  SIGNAL pot0_a,pot0_b,pot1_a,pot1_b : unsigned(7 DOWNTO 0);
+  SIGNAL clkcpt : natural RANGE 0 TO 256*256*4-1;
+  SIGNAL dpad0,dpad1 : std_logic;
   SIGNAL tick_cpu_cpt : natural RANGE 0 TO CDIV-1;
   SIGNAL tick_cpu : std_logic;
   
@@ -185,22 +176,15 @@ BEGIN
           keypad2_3 WHEN ad_delay(3 DOWNTO 0)=x"E" ELSE -- 1E8E
           x"00";
 
-  keypad1_1<=((key_rc & key_bp  & key_pc  & key_minus) OR
-              (joystick_0(11) & joystick_0(8)  & joystick_0(3) & joystick_0(0))) & "0000";
-  keypad1_2<=((key_wc & key_reg & key_mem & key_plus) OR
-              (joystick_0(12) & joystick_0(9)  & joystick_0(6) & joystick_0(1))) & "0000";
-  keypad1_3<=((key_c  & key_8   & key_4   & key_0   ) OR
-              (joystick_0(13) & joystick_0(10) & joystick_0(7) & joystick_0(2))) & "0000";
+  keypad1_1<=(joystick_0( 6) & joystick_0( 9) & joystick_0(12) & joystick_0(15)) & "0000";
+  keypad1_2<=(joystick_0( 7) & joystick_0(10) & joystick_0(13) & joystick_0(16)) & "0000";
+  keypad1_3<=(joystick_0( 8) & joystick_0(11) & joystick_0(14) & joystick_0(17)) & "0000";
   
-  keypad2_1<=((key_d  & key_9   & key_5   & key_1   ) OR
-              (joystick_1(11) & joystick_1(8)  & joystick_1(3) & joystick_1(07))) & "0000";
-  keypad2_2<=((key_e  & key_a   & key_6   & key_2   ) OR
-              (joystick_1(12) & joystick_1(9)  & joystick_1(6) & joystick_1(1))) & "0000";
-  keypad2_3<=((key_f  & key_b   & key_7   & key_3   ) OR
-              (joystick_1(13) & joystick_1(10) & joystick_1(7) & joystick_1(2))) & "0000";
+  keypad2_1<=(joystick_1( 6) & joystick_1( 9) & joystick_1(12) & joystick_1(15)) & "0000";
+  keypad2_2<=(joystick_1( 7) & joystick_1(10) & joystick_1(13) & joystick_1(16)) & "0000";
+  keypad2_3<=(joystick_1( 8) & joystick_1(11) & joystick_1(14) & joystick_1(17)) & "0000";
   
-  keypanel <=((key_select & key_start) OR
-              (joystick_0(4) & joystick_0(5)) OR
+  keypanel <=((joystick_0(4) & joystick_0(5)) OR
               (joystick_1(4) & joystick_1(5))) & "000000";
 
   volnoise <=vol & icol & explo & noise & snd & "00";
@@ -217,7 +201,7 @@ BEGIN
       lfsr<=to_unsigned(1,15);
       
     ELSIF rising_edge(clk) THEN
-      IF arca='0' AND ad_delay(3 DOWNTO 0)=x"0" AND ad_delay(12)='1' AND
+      IF ad_delay(3 DOWNTO 0)=x"0" AND ad_delay(12)='1' AND
         ad_delay(11 DOWNTO 8)="1110" AND wr='1' AND tick_cpu='1' THEN
         vol<=dw(7 DOWNTO 6);
         icol<=dw(5);
@@ -274,24 +258,12 @@ BEGIN
   -- PC Ad 4      5  6  7
   -- BP Rx 8      9  A  b
   -- R  W  C      d  E  F
-
-  -- PS2 mappings
-  ---  +  0      1  2  3
-  --P  M  4      5  6  7
-  --X  G  8      9  A  B
-  --R  W  C      D  E  F
-
+  
   -- Joystick mapping :
-  -- 0  1  2   select=4
-  -- 3  6  7   start =5
-  -- 8  9 10
-  --11 12 13     
-  
-  -- KEY    Mapped on keyboard :
-  
-  -- Additional buttons :
-  -- START
-  -- SELECT
+  --15 16 17   select=4
+  --12 13 14   start =5
+  -- 9 10 11
+  -- 6  7  8     
   
   -- flag : Joystick : 0=Horizontal 1=Vertical
   pot2<=potr_v WHEN flag='1' ELSE potr_h;
@@ -300,85 +272,89 @@ BEGIN
   ----------------------------------------------------------
   sense <=vrst;
   
-  potl_a<=mux(swap,unsigned(joystick_analog_1(15 DOWNTO 8)),
-                   unsigned(joystick_analog_0(15 DOWNTO 8)))+x"80";
-  potl_b<=mux(swap,unsigned(joystick_analog_1( 7 DOWNTO 0)),
-                   unsigned(joystick_analog_0( 7 DOWNTO 0)))+x"80";
+  Joysticks:PROCESS (clk) IS
+  BEGIN
+    IF rising_edge(clk) THEN
+      -------------------------------------------------------------------------------
+      IF dpad0='0' THEN
+        pot0_a<=unsigned(joystick_analog_0(15 DOWNTO 8))+x"80";
+        pot0_b<=unsigned(joystick_analog_0( 7 DOWNTO 0))+x"80";
+      ELSE
+        IF integ='0' THEN
+          pot0_a<=x"80";
+          pot0_b<=x"80";
+          IF joystick_0(0)='1' THEN pot0_b<=x"FF"; END IF;
+          IF joystick_0(1)='1' THEN pot0_b<=x"00"; END IF;
+          IF joystick_0(2)='1' THEN pot0_a<=x"FF"; END IF;
+          IF joystick_0(3)='1' THEN pot0_a<=x"00"; END IF;
+        ELSE
+          IF clkcpt=0 THEN
+            IF joystick_0(0)='1' AND pot0_b<x"FF" THEN pot0_b<=pot0_b + 1; END IF;
+            IF joystick_0(1)='1' AND pot0_b>x"00" THEN pot0_b<=pot0_b - 1; END IF;
+            IF joystick_0(2)='1' AND pot0_a<x"FF" THEN pot0_a<=pot0_a + 1; END IF;
+            IF joystick_0(3)='1' AND pot0_a>x"00" THEN pot0_a<=pot0_a - 1; END IF;
+          END IF;
+        END IF;
+      END IF;
+      
+      IF joystick_0(3 DOWNTO 0)/="0000" THEN
+        dpad0<='1';
+      END IF;
+      IF joystick_analog_0(7 DOWNTO 5)="100" OR joystick_analog_0(7 DOWNTO 5)="011" OR
+         joystick_analog_0(15 DOWNTO 13)="100" OR joystick_analog_0(15 DOWNTO 13)="011" THEN
+        dpad0<='0';
+      END IF;
+      
+      -------------------------------------------------------------------------------
+      IF dpad1='0' THEN
+        pot1_a<=unsigned(joystick_analog_1(15 DOWNTO 8))+x"80";
+        pot1_b<=unsigned(joystick_analog_1( 7 DOWNTO 0))+x"80";
+      ELSE
+        IF integ='0' THEN
+          pot1_a<=x"80";
+          pot1_b<=x"80";
+          IF joystick_1(0)='1' THEN pot1_b<=x"FF"; END IF;
+          IF joystick_1(1)='1' THEN pot1_b<=x"00"; END IF;
+          IF joystick_1(2)='1' THEN pot1_a<=x"FF"; END IF;
+          IF joystick_1(3)='1' THEN pot1_a<=x"00"; END IF;
+        ELSE
+          IF clkcpt=0 THEN
+            IF joystick_1(0)='1' AND pot1_b<x"FF" THEN pot1_b<=pot1_b + 1; END IF;
+            IF joystick_1(1)='1' AND pot1_b>x"00" THEN pot1_b<=pot1_b - 1; END IF;
+            IF joystick_1(2)='1' AND pot1_a<x"FF" THEN pot1_a<=pot1_a + 1; END IF;
+            IF joystick_1(3)='1' AND pot1_a>x"00" THEN pot1_a<=pot1_a - 1; END IF;
+          END IF;
+        END IF;
+      END IF;
+      
+      IF joystick_1(3 DOWNTO 0)/="0000" THEN
+        dpad1<='1';
+      END IF;
+      IF joystick_analog_1(7 DOWNTO 5)="100" OR joystick_analog_1(7 DOWNTO 5)="011" OR
+         joystick_analog_1(15 DOWNTO 13)="100" OR joystick_analog_1(15 DOWNTO 13)="011" THEN
+        dpad1<='0';
+      END IF;
+
+      -------------------------------------------------------------------------------
+      potl_a<=mux(swap,pot1_a,pot0_a);
+      potl_b<=mux(swap,pot1_b,pot0_b);
+      potr_a<=mux(swap,pot0_a,pot1_a);
+      potr_b<=mux(swap,pot0_b,pot1_b);
+      
+      clkcpt<=(clkcpt+1) MOD (256*256*4);
+      -------------------------------------------------------------------------------
+      IF reset_na='0' THEN
+        dpad0<='0';
+        dpad1<='0';
+      END IF;
+      
+    END IF;
+  END PROCESS Joysticks;
+  
   potl_h<=mux(swapxy,potl_a,potl_b);
   potl_v<=mux(swapxy,potl_b,potl_a);
-  
-  potr_a<=mux(swap,unsigned(joystick_analog_0(15 DOWNTO 8)),
-                   unsigned(joystick_analog_1(15 DOWNTO 8)))+x"80";
-  potr_b<=mux(swap,unsigned(joystick_analog_0( 7 DOWNTO 0)),
-                   unsigned(joystick_analog_1( 7 DOWNTO 0)))+x"80";
   potr_h<=mux(swapxy,potr_a,potr_b);
   potr_v<=mux(swapxy,potr_b,potr_a);
-  
-  ----------------------------------------------------------
-  KeyCodes:PROCESS (clk,reset_na) IS
-  BEGIN
-    IF reset_na='0' THEN
-         key_0<='0';
-         key_1<='0';
-         key_2<='0';
-         key_3<='0';
-         key_4<='0';
-         key_5<='0';
-         key_6<='0';
-         key_7<='0';
-         key_8<='0';
-         key_9<='0';
-         key_a<='0';
-         key_b<='0';
-         key_c<='0';
-         key_d<='0';
-         key_e<='0';
-         key_f<='0';
-         key_rc<='0'; -- R
-         key_wc<='0'; -- W
-         key_reg <= '0'; -- G
-         key_pc  <= '0'; -- P
-         key_mem <= '0'; -- M
-         key_bp  <= '0'; -- X
-         key_plus <='0'; -- +
-         key_minus<='0'; -- -
-         key_select<='0'; -- SPACE
-         key_start <='0'; -- RETURN
-    ELSIF rising_edge(clk) THEN
-      ps2_key_delay<=ps2_key;
-      IF ps2_key_delay(10)/=ps2_key(10) THEN
-        CASE ps2_key(7 DOWNTO 0) IS
-          WHEN x"45" => key_0<=ps2_key(9);
-          WHEN x"16" => key_1<=ps2_key(9);
-          WHEN x"1E" => key_2<=ps2_key(9);
-          WHEN x"26" => key_3<=ps2_key(9);
-          WHEN x"25" => key_4<=ps2_key(9);
-          WHEN x"2E" => key_5<=ps2_key(9);
-          WHEN x"36" => key_6<=ps2_key(9);
-          WHEN x"3D" => key_7<=ps2_key(9);
-          WHEN x"3E" => key_8<=ps2_key(9);
-          WHEN x"46" => key_9<=ps2_key(9);
-          WHEN x"1C" => key_a<=ps2_key(9);
-          WHEN x"32" => key_b<=ps2_key(9);
-          WHEN x"21" => key_c<=ps2_key(9);
-          WHEN x"23" => key_d<=ps2_key(9);
-          WHEN x"24" => key_e<=ps2_key(9);
-          WHEN x"2B" => key_f<=ps2_key(9);
-          WHEN x"2D" => key_rc<=ps2_key(9); -- R
-          WHEN x"1D" => key_wc<=ps2_key(9); -- W
-          WHEN X"35" => key_reg <= ps2_key(9); -- G
-          WHEN X"4D" => key_pc  <= ps2_key(9); -- P
-          WHEN X"3A" => key_mem <= ps2_key(9); -- M
-          WHEN x"22" => key_bp  <= ps2_key(9); -- X
-          WHEN x"09" => key_plus <=ps2_key(9); -- +
-          WHEN x"4E" => key_minus<=ps2_key(9); -- -
-          WHEN x"29" => key_select<=ps2_key(9); -- SPACE
-          WHEN x"5A" => key_start <=ps2_key(9); -- RETURN
-          WHEN OTHERS => NULL;
-        END CASE;
-      END IF;
-    END IF;
-  END PROCESS KeyCodes;
   
   ----------------------------------------------------------
   dr<=dr_pvi    WHEN 
@@ -413,9 +389,7 @@ BEGIN
 
   ack<=ackp WHEN rising_edge(clk);
   
-  ad_rom <="000" & ad(11 DOWNTO 0) WHEN arca='1' AND ad(14 DOWNTO 12)="000" ELSE
-           "001" & ad(11 DOWNTO 0) WHEN arca='1' AND ad(14 DOWNTO 12)="010" ELSE
-            ad;
+  ad_rom <= ad;
   
   -- CPU
   i_sgs2650: ENTITY work.sgs2650
@@ -439,7 +413,7 @@ BEGIN
       clk      => clk,
       reset_na => reset_na);
   
-  int<=int_pvi AND NOT arca;
+  int<=int_pvi;
   ad_delay<=ad WHEN rising_edge(clk);
   
   ----------------------------------------------------------

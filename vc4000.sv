@@ -236,8 +236,8 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 	
 	.joystick_0(joystick_0),
 	.joystick_1(joystick_1),
-	.joystick_l_analog_0(joystick_analog_0),
-	.joystick_l_analog_1(joystick_analog_1),
+	.joystick_r_analog_0(joystick_analog_0),
+	.joystick_r_analog_1(joystick_analog_1),
 
 	.ps2_key(ps2_key),
 );

@@ -26,7 +26,7 @@ module emu
 	input         RESET,
 
 	//Must be passed to hps_io module
-	inout  [45:0] HPS_BUS,
+	inout  [48:0] HPS_BUS,
 
 	//Base video clock. Usually equals to CLK_SYS.
 	output        CLK_VIDEO,
@@ -48,10 +48,13 @@ module emu
 	output        VGA_F1,
 	output [1:0]  VGA_SL,
 	output        VGA_SCALER, // Force VGA scaler
+	output        VGA_DISABLE, // analog out is off
 
 	input  [11:0] HDMI_WIDTH,
 	input  [11:0] HDMI_HEIGHT,
 	output        HDMI_FREEZE,
+	output        HDMI_BLACKOUT,
+	output        HDMI_BOB_DEINT,
  
 `ifdef USE_FB
 	// Use framebuffer in DDRAM (USE_FB=1 in qsf)
@@ -164,8 +167,11 @@ assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DD
 
 assign VGA_SL = 0;
 assign VGA_F1 = 0;
-assign VGA_SCALER = 0;
+assign VGA_SCALER  = 0;
+assign VGA_DISABLE = 0;
 assign HDMI_FREEZE = 0;
+assign HDMI_BLACKOUT = 0;
+assign HDMI_BOB_DEINT = 0;
 
 assign LED_DISK = 0;
 assign LED_POWER = 0;
@@ -230,8 +236,8 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 	
 	.joystick_0(joystick_0),
 	.joystick_1(joystick_1),
-	.joystick_analog_0(joystick_analog_0),
-	.joystick_analog_1(joystick_analog_1),
+	.joystick_r_analog_0(joystick_analog_0),
+	.joystick_r_analog_1(joystick_analog_1),
 
 	.ps2_key(ps2_key),
 );
